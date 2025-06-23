@@ -21,7 +21,7 @@ button:active{transform:scale(.98)}
 </head>
 <body>
 
-<h1>Cucco Helper — 慎重モード</h1>
+<h1>Cucco Helper — 慎重モード v2</h1>
 
 <section id="input-area">
   <label>現在の手札</label>
@@ -86,12 +86,13 @@ class CuccoPlayer {
     if(this.changed && this.prev!==null && hand>this.prev) return 'NO CHANGE (got stronger)';
     const total = 40 - this.seen.reduce((a,b)=>a+b,0);
     const better = this.sumRange(hand+1,15);
-    if(better === 0) return 'NO CHANGE (no stronger cards left)';
-    const blockers = [13,14,15].reduce((s,v)=>s+(2-this.seen[this.idx(v)]),0);
     const pImprove = total ? better / total : 0;
+    if (pImprove < 0.35) return 'NO CHANGE (improve too unlikely)';
+    if (better === 0) return 'NO CHANGE (no stronger cards left)';
+    const blockers = [13,14,15].reduce((s,v)=>s+(2-this.seen[this.idx(v)]),0);
     const pBlock = this.pos === 0 ? 0 : (total ? blockers / total : 1);
     const penalty = this.stage === 'ADULT' ? 1.5 : 1.0;
-    let exp = (pImprove * 0.8) - (penalty * pBlock * 1.2) + (this.pos === 0 ? 0.02 : -0.08);
+    let exp = (pImprove * 0.7) - (penalty * pBlock * 1.3) + (this.pos === 0 ? 0 : -0.05);
     const thresh = this.risk - 0.5;
     return exp > thresh ? 'CHANGE' : 'NO CHANGE';
   }
