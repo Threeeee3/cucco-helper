@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Cucco Helper</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",sans-serif;margin:0;padding:1rem;background:#f5f5f5;color:#333}
+h1{font-size:1.3rem;margin:0 0 .4rem}
+section{background:#fff;padding:1rem;margin-bottom:1rem;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+label{display:block;margin:.4rem 0 .2rem}
+input,select,button{font-size:1rem;padding:.4rem .6rem;border:1px solid #ccc;border-radius:4px}
+button{cursor:pointer;background:#1976d2;color:#fff;border:none}
+button:active{transform:scale(.98)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:.4rem}
+.card-btn{background:#eee;border:none;border-radius:4px;padding:.6rem 0}
+.card-btn.count1{background:#1976d2;color:#fff}
+.card-btn.count2{background:#d32f2f;color:#fff}
+.result{font-size:1.4rem;font-weight:bold;text-align:center;margin-top:.6rem}
+</style>
+</head>
+<body>
+
+<h1>Cucco Helper — 慎重モード</h1>
+
+<section id="input-area">
+  <label>現在の手札</label>
+  <select id="hand"></select>
+
+  <label>前回手札（チェンジ前）</label>
+  <select id="prev-hand"></select>
+
+  <label>
+    <input type="checkbox" id="was-changed"> 直前にチェンジされた
+  </label>
+
+  <label>ステージ</label>
+  <select id="stage">
+    <option value="CHILD">子供時間 (1–3R)</option>
+    <option value="ADULT">大人時間 (4R〜)</option>
+  </select>
+
+  <label>あなたの手番位置（0 = 山札と交換）</label>
+  <select id="pos">
+    <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+    <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+  </select>
+
+  <label>リスク志向 (0=慎重 1=攻撃的)</label>
+  <input type="range" id="risk" min="0" max="1" step="0.05" value="0.5">
+  <span id="risk-val">0.50</span>
+
+  <button id="decide">判定する</button>
+  <button id="reset">リセット</button>
+  <div id="decision" class="result"></div>
+</section>
+
+<section id="seen-area">
+  <h2>出たカードをタップして記録（最大2回）</h2>
+  <div class="grid" id="card-grid"></div>
+</section>
+
+<script>
+class CuccoPlayer {
+  constructor(risk = 0.5) {
+    this.prev = null;
+    this.changed = false;
+    this.seen = Array(22).fill(0);
+    this.stage = 'CHILD';
+    this.pos = 0;
+    this.risk = risk;
+  }
+  idx(c){return c+4}
+  updateStage(s){this.stage=s}
+  updatePos(p){this.pos=p}
+  updateRisk(r){this.risk=r}
+  notifyChanged(prev){this.changed=true; this.prev=prev}
+  endTurn(){this.changed=false}
+  addSeen(c){ if(this.seen[this.idx(c)]<2) this.seen[this.idx(c)]++ }
+  removeSeen(c){ if(this.seen[this.idx(c)]>0) this.seen[this.idx(c)]-- }
+  getCount(c){ return this.seen[this.idx(c)] }
+  decide(hand){
+    if(hand===17) return 'DECLARE CUCCO';
+    if(hand===-4) return 'CHANGE (Matto)';
+    if([13,14,15,16].includes(hand)) return 'NO CHANGE (keep special)';
+    if(this.changed && this.prev!==null && hand>this.prev) return 'NO CHANGE (got stronger)';
+    const total = 40 - this.seen.reduce((a,b)=>a+b,0);
+    const better = this.sumRange(hand+1,15);
+    if(better === 0) return 'NO CHANGE (no stronger cards left)';
+    const blockers = [13,14,15].reduce((s,v)=>s+(2-this.seen[this.idx(v)]),0);
+    const pImprove = total ? better / total : 0;
+    const pBlock = this.pos === 0 ? 0 : (total ? blockers / total : 1);
+    const penalty = this.stage === 'ADULT' ? 1.5 : 1.0;
+    let exp = (pImprove * 0.8) - (penalty * pBlock * 1.2) + (this.pos === 0 ? 0.02 : -0.08);
+    const thresh = this.risk - 0.5;
+    return exp > thresh ? 'CHANGE' : 'NO CHANGE';
+  }
+  sumRange(a,b){
+    let s=0;
+    for(let v=a; v<=b; v++) s += (2 - this.seen[this.idx(v)]);
+    return s;
+  }
+}
+
+window.onload = () => {
+  const handSel = document.getElementById('hand');
+  const prevSel = document.getElementById('prev-hand');
+  for(let v=17; v>=-4; v--){
+    const o=document.createElement('option');
+    o.value=o.textContent=v;
+    handSel.appendChild(o.cloneNode(true));
+    prevSel.appendChild(o);
+  }
+
+  const riskSlider = document.getElementById('risk');
+  riskSlider.oninput = () => document.getElementById('risk-val').textContent = parseFloat(riskSlider.value).toFixed(2);
+
+  const grid = document.getElementById('card-grid');
+  const player = new CuccoPlayer();
+
+  for(let v=17; v>=-4; v--){
+    const btn=document.createElement('button');
+    btn.textContent=v;
+    btn.className='card-btn';
+    btn.onclick=()=>{
+      const idx = player.idx(v);
+      player.seen[idx] = (player.seen[idx] + 1) % 3;
+      btn.classList.remove('count0','count1','count2');
+      if(player.seen[idx]===1) btn.classList.add('count1');
+      else if(player.seen[idx]===2) btn.classList.add('count2');
+      else btn.className='card-btn';
+    };
+    grid.appendChild(btn);
+  }
+
+  document.getElementById('decide').onclick=()=>{
+    player.updateStage(document.getElementById('stage').value);
+    player.updatePos(parseInt(document.getElementById('pos').value,10));
+    player.updateRisk(parseFloat(riskSlider.value));
+    const was=document.getElementById('was-changed').checked;
+    if(was) player.notifyChanged(parseInt(prevSel.value,10));
+    else player.endTurn();
+    const res=player.decide(parseInt(handSel.value,10));
+    document.getElementById('decision').textContent = res;
+  };
+
+  document.getElementById('reset').onclick = () => {
+    player.seen = Array(22).fill(0);
+    document.querySelectorAll(".card-btn").forEach(btn => btn.className='card-btn');
+    document.getElementById('decision').textContent = "";
+  };
+};
+</script>
+</body>
+</html>
