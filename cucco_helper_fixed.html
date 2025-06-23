@@ -40,7 +40,7 @@ button:active{transform:scale(.98)}
     <option value="ADULT">大人時間 (4R〜)</option>
   </select>
 
-  <label>あなたの手番位置（0 = 次は山札）</label>
+  <label>あなたの手番位置（0 = 山札と交換）</label>
   <select id="pos">
     <option value="0">0</option><option value="1">1</option><option value="2">2</option>
     <option value="3">3</option><option value="4">4</option><option value="5">5</option>
@@ -65,7 +65,7 @@ class CuccoPlayer {
   constructor(risk = 0.5) {
     this.prev = null;
     this.changed = false;
-    this.seen = Array(20).fill(0);
+    this.seen = Array(22).fill(0);
     this.stage = 'CHILD';
     this.pos = 0;
     this.risk = risk;
@@ -80,13 +80,13 @@ class CuccoPlayer {
   removeSeen(c){ if(this.seen[this.idx(c)]>0) this.seen[this.idx(c)]-- }
   getCount(c){ return this.seen[this.idx(c)] }
   decide(hand){
-    if(hand===15) return 'DECLARE CUCCO';
+    if(hand===17) return 'DECLARE CUCCO';
     if(hand===-4) return 'CHANGE (Matto)';
-    if([14,13,12,11].includes(hand)) return 'NO CHANGE (keep special)';
+    if([13,14,15,16].includes(hand)) return 'NO CHANGE (keep special)';
     if(this.changed && this.prev!==null && hand>this.prev) return 'NO CHANGE (got stronger)';
     const total = 40 - this.seen.reduce((a,b)=>a+b,0);
     const better = this.sumRange(hand+1,15);
-    const blockers = [11,12,13].reduce((s,v)=>s+(2-this.seen[this.idx(v)]),0);
+    const blockers = [13,14,15].reduce((s,v)=>s+(2-this.seen[this.idx(v)]),0);
     const pImprove = total? better/total:0;
     const pBlock = this.pos===0?0:(total? blockers/total:1);
     const penalty = this.stage==='ADULT'?1.5:1.0;
@@ -104,7 +104,7 @@ class CuccoPlayer {
 window.onload = () => {
   const handSel = document.getElementById('hand');
   const prevSel = document.getElementById('prev-hand');
-  for(let v=15; v>=-4; v--){
+  for(let v=17; v>=-4; v--){
     const o=document.createElement('option');
     o.value=o.textContent=v;
     handSel.appendChild(o.cloneNode(true));
@@ -117,7 +117,7 @@ window.onload = () => {
   const grid = document.getElementById('card-grid');
   const player = new CuccoPlayer();
 
-  for(let v=15; v>=-4; v--){
+  for(let v=17; v>=-4; v--){
     const btn=document.createElement('button');
     btn.textContent=v;
     btn.className='card-btn';
@@ -144,7 +144,7 @@ window.onload = () => {
   };
 
   document.getElementById('reset').onclick = () => {
-    player.seen = Array(20).fill(0);
+    player.seen = Array(22).fill(0);
     document.querySelectorAll(".card-btn").forEach(btn => btn.className='card-btn');
     document.getElementById('decision').textContent = "";
   };
